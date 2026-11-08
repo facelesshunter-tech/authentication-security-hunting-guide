@@ -230,27 +230,29 @@ flowchart TD
 
 Every branch above is built from a reconciliation of three source types, not invented. This table is the map from taxonomy branch to where its depth actually comes from.
 
-| Domain | Course phase(s) | Testing Approach phase | Checklist phase | Attack guide |
+All 17 attack guides are now complete, and every checklist phase cited below was read in full before the corresponding guide was built — not skimmed, not assumed. This table is current as of that completion, not a forward-looking plan.
+
+| Domain | Course phase(s) | Testing Approach phase | Checklist phase(s) | Attack guide |
 |---|---|---|---|---|
 | Attack Surface Mapping | All phases, entry points | Phase 1 | Phase 1 | `01-ATTACK-SURFACE-MAPPING.md` |
 | Password and Credential Security | Phase 1 | Phase 5 | Phase 5 | `02-PASSWORD-AND-CREDENTIAL-ATTACKS.md` |
-| Session Security | Phase 6 | Phase 8 | Phase 8 (checklist, not yet read) | `03-SESSION-SECURITY.md` |
-| Token Security (JWT) | Phase 16 (crypto) | Phase 12 | Phase 12 (checklist, not yet read) | `04-JWT-AND-TOKEN-SECURITY.md` |
-| Multi-Factor Authentication | Phases 3-4 | Phase 7 | Phase 7 (checklist, not yet read) | `05-MFA-ATTACKS.md` |
-| Password Reset and Recovery | Phase 2 | Phase 6 | Phase 6 (checklist, not yet read) | `06-PASSWORD-RESET-AND-RECOVERY.md` |
-| OAuth2 and OIDC | Phase 7 | Phase 10 | Phase 10 (checklist, not yet read) | `07-OAUTH2-AND-OIDC.md` |
-| SAML Security | Phase 10 | Phase 10 | Phase 10 (checklist, not yet read) | `08-SAML-SECURITY.md` |
-| Account Lifecycle | Phase 8 | Phase 4 | Phase 4 (checklist, not yet read) | `09-ACCOUNT-LIFECYCLE.md` |
-| Reauthentication and Step-Up | Phase 9 | Phase 9 | Phase 9 (checklist, not yet read) | `10-REAUTHENTICATION.md` |
-| Multi-Tenant Identity | Phase 11 | Phase 14 (as part of authz) | Phase 14 (checklist, not yet read) | `11-MULTI-TENANT-IDENTITY.md` |
-| Legacy Authentication | Phase 13 | Phase 11 | Phase 11 (checklist, not yet read) | `12-LEGACY-AUTHENTICATION.md` |
-| Federated Logout | Phase 14 | Phase 10 | Phase 10 (checklist, not yet read) | `13-FEDERATED-LOGOUT.md` |
-| Authentication Logging | Phase 15 | Phase 13 | Phase 13 (checklist, not yet read) | `14-AUTHENTICATION-LOGGING.md` |
-| Cryptographic Failures | Phase 16 | Phase 12 | Phase 12 (checklist, not yet read) | `15-CRYPTOGRAPHIC-FAILURES.md` |
-| Authentication-Adjacent Authorization | Phase 17 | Phase 14 | Phase 14 (checklist, not yet read) | `16-AUTHENTICATION-ADJACENT-AUTHORIZATION.md` |
-| Information Leakage | Phase 12 | Phase 3 | Phase 3 (checklist, read in full) | `17-INFORMATION-LEAKAGE.md` |
+| Session Security | Phase 6 | Phase 8 | Phase 6 | `03-SESSION-SECURITY.md` |
+| Token Security (JWT) | Phase 16 (crypto) | Phase 12 | Phase 16 (JWT/token-specific portions only) | `04-JWT-AND-TOKEN-SECURITY.md` |
+| Multi-Factor Authentication | Phases 3-5 | Phase 7 | No dedicated phase — sourced from Testing Approach Phase 7 and course Phases 3-5 directly, flagged honestly in the guide | `05-MFA-ATTACKS.md` |
+| Password Reset and Recovery | Phase 2 | Phase 6 | Phase 5 (TESTs 3.6/5.7) + Phase 3 (sections 6, 9, 22) | `06-PASSWORD-RESET-AND-RECOVERY.md` |
+| OAuth2 and OIDC | Phase 7 | Phase 10 | Phase 7 | `07-OAUTH2-AND-OIDC.md` |
+| SAML Security | Phase 10 | Phase 10 | Phase 10 | `08-SAML-SECURITY.md` |
+| Account Lifecycle | Phase 8 | Phase 4 | Phase 8 | `09-ACCOUNT-LIFECYCLE.md` |
+| Reauthentication and Step-Up | Phase 9 | Phase 9 | Phase 9 | `10-REAUTHENTICATION.md` |
+| Multi-Tenant Identity | Phase 11 | Phase 14 (as part of authz) | Phase 11 | `11-MULTI-TENANT-IDENTITY.md` |
+| Legacy Authentication | Phase 13 | Phase 11 | Phase 4 + Phase 13 "Mastery" (BB-08 through BB-13 specifically) | `12-LEGACY-AUTHENTICATION.md` |
+| Federated Logout | Phase 14 | Phase 10 | Phase 14 | `13-FEDERATED-LOGOUT.md` |
+| Authentication Logging | Phase 15 | Phase 13 | Phase 15 | `14-AUTHENTICATION-LOGGING.md` |
+| Cryptographic Failures | Phase 16 | Phase 12 | Phase 16 (general-purpose portions, excluding what Guide 04 owns) | `15-CRYPTOGRAPHIC-FAILURES.md` |
+| Authentication-Adjacent Authorization | Phase 17 | Phase 14 | Phase 17 (final phase of the checklist file) | `16-AUTHENTICATION-ADJACENT-AUTHORIZATION.md` |
+| Information Leakage | Phase 12 | Phase 3 | Phase 12 "Mastery" (primary) + Phase 3 (supplementary) | `17-INFORMATION-LEAKAGE.md` |
 
-Rows marked "checklist, not yet read" will be read in full at the point each attack guide is built, not before — the same approach used to build the original 17-phase course, and the approach agreed in Phase 0 discovery.
+Two guides (05 and 12) drew from more than one checklist location rather than a single clean phase — both flag this honestly in their own source notes rather than presenting a tidier-looking but inaccurate picture.
 
 ## 4. How to use this map on a real assessment
 
