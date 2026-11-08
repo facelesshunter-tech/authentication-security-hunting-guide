@@ -12,15 +12,15 @@ For every protected operation, the application must enforce the required authent
 
 Password change, recovery-email/phone change, MFA removal, API-credential generation, payout/ownership changes, account deletion, access to particularly sensitive records, and any other operation the application's own policy marks as requiring fresh or stronger proof.
 
-## C. Three concepts to keep separate
+### Three concepts to keep separate
 
 **Authentication** (establishing control of an authenticator), **reauthentication** (re-establishing confidence in identity for a specific operation — e.g. entering the password again before changing MFA), and **step-up authentication** (meeting a *stronger* assurance requirement for a higher-risk action — e.g. requiring a passkey before a high-value transaction). These overlap but aren't interchangeable: a fresh password check can satisfy a reauthentication policy without satisfying a phishing-resistant-MFA requirement, and completing MFA earlier in a session doesn't automatically prove the user meets a *fresh*-authentication requirement right now.
 
-## D. Threat model
+## C. Threat model
 
 The realistic attacker already has a valid, currently-logged-in session (their own, if testing authorized) and is trying to perform an operation that policy says should require additional proof — either by simply not providing it, by providing stale proof, by hitting an alternate route that forgot to enforce the same policy as the main one, or by exploiting a challenge that got bound to the wrong context (wrong operation, wrong session). No special capability is required beyond an existing session — this guide is entirely about whether that session alone is being trusted for more than it should be.
 
-## E. Black-box testing
+## D. Black-box testing
 
 **Baseline first.** Establish what a legitimate, fully-compliant operation looks like — authenticate, complete whatever reauthentication the UI asks for, perform the change, verify it actually took effect.
 
@@ -38,11 +38,11 @@ The realistic attacker already has a valid, currently-logged-in session (their o
 
 **Authentication-context confusion.** The scenario worth testing deliberately: begin reauthentication for operation A (e.g. password change), then attempt a *different* sensitive operation B (e.g. disabling MFA) and check whether the earlier authentication event gets accepted for B too. This isn't automatically a finding — some systems intentionally let one recent authentication authorize multiple operations within a window — but if the design is supposed to require purpose-specific authentication, verify the event is actually bound to the correct account, session, intended operation, required method, and freshness window, not just a generic "recently authenticated" flag.
 
-## F. Gray-box testing
+## E. Gray-box testing
 
 Compare documented policy (freshness windows, which methods satisfy which operations, step-up requirements) against deployed configuration and observed behavior — a setting literally named `reauthentication_required` existing doesn't prove it's enforced, and its absence doesn't prove a gap if the policy lives elsewhere. Inspect session/authentication metadata where authorized: does the application distinguish session *creation* from the *last successful authentication*, does it record which method was used, can it tell password-only from MFA-completed. Inspect the step-up challenge's own lifecycle — is it bound to a specific account, session, required method, and intended operation/scope, or could a challenge issued for one context authorize a different one. Compare environments for debug-only shortcuts, disabled MFA requirements, or administrative exceptions broader than intended in production.
 
-## G. White-box testing
+## F. White-box testing
 
 **Trace the sensitive-operation path**: `request → route/controller → session/token validation → account-state check → authorization check → reauthentication/step-up policy check → business operation → persistence → audit`. The critical question: is the authentication check performed *before* the sensitive side effect, using authoritative session state — and can a background job or alternate entry point perform the same operation without preserving that requirement? A check existing somewhere in the repo that isn't actually invoked on the relevant path protects nothing.
 
@@ -68,7 +68,7 @@ Review for: correct timestamp source (does this reflect the *authentication* eve
 
 **Trace business-operation boundaries.** Some applications validate reauthentication in a controller but perform the actual sensitive change in a separate service — confirm the security decision stays effective through to that service, not just at the controller's entry point, and check whether the operation is triggerable through another supported entry point that skips the controller entirely.
 
-## H. Differential testing
+## G. Differential testing
 
 | Dimension | Baseline | Comparison | Question |
 |---|---|---|---|
@@ -82,19 +82,19 @@ Review for: correct timestamp source (does this reflect the *authentication* eve
 
 Change one variable at a time; don't compare unrelated operations and infer a vulnerability without first confirming the same security requirement should actually apply to both.
 
-## I. Exploitation and validation
+## H. Exploitation and validation
 
 Minimal proof for every finding class here follows the same shape: confirmed policy, a session that demonstrably hasn't met it, and the protected operation's resulting state actually changing — not a status code, the actual state. For context-confusion findings specifically: demonstrate a challenge or authentication event issued for operation A gets accepted for operation B, against your own controlled account.
 
-## J. False-positive analysis
+## I. False-positive analysis
 
 Don't assume every sensitive operation needs fresh authentication — establish the actual policy first. Don't confuse a valid session with fresh authentication — they're different things even when both hold. Don't confuse MFA *enrollment* with MFA *completion this session* — having MFA configured proves nothing about whether the current session satisfied it, and conversely, a request missing an MFA field doesn't prove MFA wasn't completed earlier via a server-tracked flag. Don't assume every operation needs its own separate challenge — some systems legitimately let one recent authentication cover multiple operations within a window; check the documented scope. A UI prompt is never proof of server-side enforcement. An error response doesn't prove protection — the action may have already succeeded before the error. A successful response doesn't prove a bypass either — it might mean "reauthentication required" or "queued, not yet executed." Don't confuse authorization with authentication assurance — a user can be freshly authenticated but lack permission, or have the right role but insufficient assurance; these are independent checks that both need testing.
 
-## K. Root cause
+## J. Root cause
 
 The recurring patterns: a UI-only prompt with no corresponding server-side check on the actual operation; a freshness check that uses session-creation time instead of last-authentication time; an assurance level collapsed into a single generic flag that can't distinguish method or recency; a challenge marked successful on initiation rather than on validated completion; and shared enforcement middleware that exists but doesn't actually cover every route reaching the protected operation.
 
-## L. Remediation
+## K. Remediation
 
 - Enforce every reauthentication/step-up policy server-side; never rely on the UI prompt as the control.
 - Track authentication freshness separately from session validity — use the actual last-successful-authentication timestamp, not session creation time.
@@ -102,6 +102,10 @@ The recurring patterns: a UI-only prompt with no corresponding server-side check
 - Bind every challenge to its account, session, intended operation, and required method; mark it successful only after genuine validation completes, never on initiation.
 - Apply the policy consistently across every route, client, and background workflow that can reach the protected operation.
 - Keep authorization checks independent of and in addition to authentication-assurance checks — fresh authentication never substitutes for a permission check.
+
+## L. Regression testing
+
+Re-test every sensitive operation's reauthentication/step-up enforcement after any change to the session or authentication-context model (new login method, new MFA factor type), since that's exactly where a freshness or assurance check tends to silently stop covering a new code path. Re-run the direct-access/API-bypass test after any new client or route ships, since a new entry point is the most common place for a reauthentication requirement to go missing entirely rather than merely weaken.
 
 ## M. Finding documentation
 

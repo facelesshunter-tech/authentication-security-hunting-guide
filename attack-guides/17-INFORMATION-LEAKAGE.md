@@ -86,7 +86,7 @@ Build a complete inventory of every authentication-adjacent information source (
 
 Ten dimensions: account-existence (registered vs. controlled-unregistered, same workflow, same invalid input), account-state (one known property changed at a time — never change multiple properties simultaneously, or you won't know which one caused the observed difference), MFA-state, timing (multiple measurements, documented sample count/median/variability, no invented universal threshold), response-channel (headers, cookies, redirects, size, cache behavior, follow-up endpoints — not just the body text), token-flow (compare a token's intended path against every place it actually appears), identity (anonymous vs. ordinary user vs. owner vs. tenant admin vs. platform admin — the expected response legitimately differs by caller, the question is whether each one gets exactly what policy allows), interface (web/mobile/REST/GraphQL/federated for the same workflow), environment (staging vs. production, never inferring production exposure from a dev-only behavior without separately verifying it), and before/after a controlled state transition (reset, verification, MFA enrollment, session revocation, account disabling — checking whether stale information remains exposed past the transition).
 
-## H. Worked examples
+### Worked examples
 
 **Password-reset account enumeration**: black-box shows a repeatable distinction between registered and controlled-unregistered identifiers at the reset endpoint; gray-box confirms documentation explicitly states account existence shouldn't be disclosed to unauthenticated callers; white-box shows the recovery handler branching its external response directly on the account-lookup result. Root cause: the external response directly reflects a sensitive internal distinction. This supports an enumeration finding — it does not by itself establish account takeover; don't inflate the severity past what's demonstrated.
 
@@ -94,19 +94,19 @@ Ten dimensions: account-existence (registered vs. controlled-unregistered, same 
 
 **Timing-based account enumeration**: black-box repeated measurements suggest a distinguishable timing distribution for existing accounts; gray-box tracing shows the known-account path performs additional processing; white-box confirms password-hash verification is skipped entirely for nonexistent accounts. The remaining question that determines whether this is reportable: is the difference *sufficiently stable and remotely observable* under realistic conditions — a code-path difference existing in source is not sufficient on its own without that practical side-channel evaluation.
 
-## I. Exploitation and validation
+## H. Exploitation and validation
 
 Minimal proof for enumeration: the repeatable, multi-channel comparison (body, headers, timing, follow-up behavior) across a controlled registered vs. unregistered pair, demonstrating the distinction survives even when the primary message text is identical. Minimal proof for token leakage: trace the specific token from generation through to the unintended destination, with confirmation of its actual validity and scope — not just its presence somewhere unexpected. Minimal proof for cross-tenant leakage: demonstrate the specific private field reaching a caller with zero legitimate membership in the owning tenant.
 
-## J. False-positive analysis
+## I. False-positive analysis
 
 Different error messages don't automatically mean a vulnerability — the difference may be intentional or already public; establish the actual confidentiality policy. Identical messages don't mean enumeration is impossible — headers, timing, size, redirects, cookies, and follow-up behavior can still differ even when the visible text matches. One slow request proves nothing about timing — use repeated measurements and compare distributions. A token-shaped string isn't automatically a credential leak — it may be a placeholder, expired, or a non-secret identifier. Not every stack trace is high severity — assess what's actually disclosed and what an attacker can realistically do with it. Technology-disclosure headers aren't automatically reportable bugs — apply the program's actual criteria rather than inflating low-impact reconnaissance. A reset token in its own intended link isn't automatically vulnerable — investigate unintended recipients and logging instead. A private response appearing in browser history doesn't prove server-side access — verify the current authorization decision with a fresh request. An administrator seeing extra data isn't automatically a vulnerability — they may be explicitly authorized for exactly that scope. A source-code weakness doesn't prove external exploitability on its own — trace the complete path and confirm the code is actually reachable in the relevant environment.
 
-## K. Root cause
+## J. Root cause
 
 The two dominant patterns across this entire guide: an external response that directly mirrors an internal state distinction the policy intended to keep private (the account-lookup result flowing straight into the error message or timing behavior), and sensitive material logged, cached, or serialized in a broader-than-intended scope because "we might need it for debugging" outweighed "this shouldn't be recorded at all" during implementation.
 
-## L. Remediation
+## K. Remediation
 
 - Return only the information the caller's specific identity and workflow state actually requires; use generic responses wherever account existence or state must remain private, and verify the uniformity holds across the *entire* workflow, not just the first response.
 - Normalize the full response path — status, body, redirects, headers, cookies, timing, follow-up behavior — not just the error-message text, since any one of those channels alone can leak the distinction the others successfully hide.
@@ -114,6 +114,10 @@ The two dominant patterns across this entire guide: an external response that di
 - Redact credentials and tokens at the source before they ever reach logs, traces, or analytics — not just at the display/viewer layer.
 - Apply consistent privacy rules across every authentication workflow (registration, login, recovery, verification, MFA, federated login) — a hardened primary login doesn't compensate for a leaky recovery endpoint.
 - Scope administrative and cross-tenant visibility explicitly rather than by default.
+
+## L. Regression testing
+
+Re-run the full account-existence and account-state differential after any change to login, recovery, or registration error handling — a refactor that "simplifies" error responses is exactly where a previously-fixed enumeration gap tends to reappear. Re-check logs and traces for raw secrets after any logging-library upgrade or new telemetry integration, since redaction configuration doesn't automatically carry forward to a new sink. Re-verify timing-based findings after any change to the account-lookup or password-verification code path, since that's precisely where the processing-time asymmetry originates.
 
 ## M. Finding documentation
 

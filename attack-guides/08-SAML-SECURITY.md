@@ -40,7 +40,7 @@ The realistic attacker rarely needs to forge a signature. They need an assertion
 
 **Authentication-context enforcement.** Where the application has an explicit assurance requirement (e.g., a privileged function requiring MFA-backed authentication), test whether it accepts an assertion indicating only a weaker method. Not every SAML application needs to enforce a specific context — establish the actual requirement first.
 
-**XML parser and signature-reference behavior — this is the entry point for XML Signature Wrapping**, covered in depth in section G below. At the black-box level: in a dedicated authorized environment, test whether malformed or structurally ambiguous messages are rejected safely. Never run parser-stress or XXE-adjacent tests against production without explicit authorization and safeguards.
+**XML parser and signature-reference behavior — this is the entry point for XML Signature Wrapping**, covered in depth in the dedicated subsection below. At the black-box level: in a dedicated authorized environment, test whether malformed or structurally ambiguous messages are rejected safely. Never run parser-stress or XXE-adjacent tests against production without explicit authorization and safeguards.
 
 ## E. Gray-box testing
 
@@ -76,7 +76,7 @@ The realistic attacker rarely needs to forge a signature. They need an assertion
 
 **Session creation.** Confirm it happens only after every required check — signature, issuer, audience/endpoint, time, correlation/replay, identity mapping, account status — and investigate whether any exception or alternate branch can create a session before all of those are satisfied.
 
-## G. XML Signature Wrapping — focused investigation
+### XML Signature Wrapping — focused investigation
 
 This gets its own section because it's the SAML-specific vulnerability class with no equivalent anywhere else in this guide set, and it's subtle enough to deserve a dedicated walkthrough.
 
@@ -84,7 +84,7 @@ This gets its own section because it's the SAML-specific vulnerability class wit
 
 Black-box evidence: a structurally ambiguous test message, in an authorized environment, that's accepted rather than rejected. Record the message structure, the signature-validation outcome if observable, which identity the application actually used, and the resulting account and privileges. Gray-box evidence: logs or library output showing which element was validated versus which subject was extracted. White-box evidence: trace parsing → signature-reference resolution → verification → assertion selection → subject extraction → account mapping, and demonstrate the mismatch directly. A strange XML structure alone is not proof — the finding requires showing the validated element and the consumed element are different.
 
-## H. Differential testing
+## G. Differential testing
 
 | Dimension | Baseline | Comparison | Question |
 |---|---|---|---|
@@ -100,19 +100,19 @@ Black-box evidence: a structurally ambiguous test message, in an authorized envi
 
 Change one property at a time — altering multiple fields together makes it impossible to tell which one actually caused a rejection.
 
-## I. Exploitation and validation
+## H. Exploitation and validation
 
 Minimal proof for each finding class is listed in the source material's own "Common Findings" catalog — in every case, the standard is: confirmed policy, a controlled message that violates it, demonstrated acceptance, and a verified resulting identity/session. Never test any of this against real users or production identities — controlled test IdP and accounts only.
 
-## J. False-positive analysis
+## I. False-positive analysis
 
 Treating every unsigned *response* as vulnerable without checking whether the *assertion* signature is correctly required instead. Treating every missing `InResponseTo` as a flaw without confirming whether IdP-initiated SSO is actually the supported flow. Treating a valid signature as proof of a valid assertion — it replaces none of the issuer/audience/time/recipient/correlation/mapping checks. Treating an expired assertion as exploitable without checking the documented clock-skew tolerance first. Treating every repeated response as replay without confirming the resulting authentication state actually changed. Treating email-based mapping as automatically unsafe without checking whether the trust model actually supports it. Treating every XML parser as XXE-vulnerable without confirming untrusted input can reach a dangerous configuration. Treating a suspicious XML structure as proof of signature wrapping without demonstrating the validated-vs-consumed element mismatch directly.
 
-## K. Root cause
+## J. Root cause
 
 The recurring pattern across nearly every finding class here: a check that exists somewhere in the codebase (issuer comparison, audience check, correlation lookup) but is either not actually invoked on the real execution path, or has its result not respected (logged as a warning instead of terminating processing). For XSW specifically: identity extraction operating on raw parsed XML independently of what the signature verification step actually validated.
 
-## L. Remediation
+## K. Remediation
 
 - Use a maintained SAML library's secure-processing APIs; never hand-roll XML signature validation.
 - Anchor trust to controlled configuration (issuer, signing keys) — never to values the incoming message asserts about itself.
@@ -121,6 +121,10 @@ The recurring pattern across nearly every finding class here: a check that exist
 - Implement replay tracking that matches the actual deployment architecture (shared across instances where that's required).
 - Define identity-mapping rules explicitly — which claims are authoritative, from which IdPs, under what verification assumptions — and never let unauthorized attributes assign privileged roles.
 - Create sessions only after every required check passes; no exception path should fall through to success.
+
+## L. Regression testing
+
+Re-run the full differential matrix (signature, issuer, audience, recipient, time, correlation, replay, XML structure) after any SAML library upgrade, since validation defaults and strictness can change silently between versions. Re-test identity mapping specifically after any change to attribute-release configuration on the IdP side. Re-verify XML Signature Wrapping resistance after any change to the XML parsing or signature-reference-resolution code — this is exactly the kind of defect that can be silently reintroduced by a seemingly unrelated parser or library swap.
 
 ## M. Finding documentation
 

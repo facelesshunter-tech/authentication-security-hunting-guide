@@ -12,15 +12,15 @@ Five boundaries must each hold independently for every sensitive operation: iden
 
 Profiles/account settings, orders/invoices/payments/refunds, documents/reports/downloads, user and role management, tenant/organization administration, API keys and integration settings, uploads and file retrieval, support tickets, exports and background jobs, administrative/internal APIs, and GraphQL queries/mutations where applicable.
 
-## C. Vulnerability taxonomy
+### Vulnerability taxonomy
 
 BOLA/IDOR (object ownership not enforced), Broken Function-Level Authorization/BFLA (restricted operation reachable by an unauthorized role), privilege escalation (gaining authority beyond assigned permissions — horizontal: same level, different identity; vertical: a genuinely higher level), tenant isolation failure, mass assignment (client-controlled fields altering protected properties), authorization bypass through alternate routes (one endpoint enforces policy, an equivalent one doesn't), workflow authorization failure (steps reachable out of valid sequence), property-level authorization failure (some fields writable or readable when they shouldn't be), delegated-access failure (sharing/revocation rules wrong), and confused-deputy flaws (a trusted service acts with its own authority on behalf of an insufficiently authorized caller). **Classify by the actual security boundary violated, not by which endpoint you happened to find it on — a single issue can be both BOLA and a tenant-isolation failure at once.**
 
-## D. Threat model
+## C. Threat model
 
 The defining feature of this entire guide: the attacker needs no special capability beyond a *valid, ordinary authenticated session* of their own. No credential theft, no cryptographic attack, no social engineering — every test here is "I am who I claim to be; the question is whether the server checks what I'm allowed to touch."
 
-## E. Black-box testing
+## D. Black-box testing
 
 **Build the authorization attack surface first** as a structured matrix, not an unstructured endpoint list: `identity → resource → action → expected decision` (e.g. "User A → User B's invoice → Read → Deny"). This discipline matters because it forces you to state the expected policy *before* you observe behavior, which is what separates a defensible finding from a post-hoc rationalization.
 
@@ -40,11 +40,11 @@ The defining feature of this entire guide: the attacker needs no special capabil
 
 **Authorization after permission changes.** Downgrade a role, remove tenant membership, revoke a sharing permission, disable an account — then check whether *subsequent* requests actually respect the new state, considering cached permissions, long-lived tokens, background jobs, and previously generated download links as distinct places the old permission could persist. Some systems have intentionally short but nonzero propagation windows — compare against the documented requirement before calling persistence a finding.
 
-## F. Gray-box testing
+## E. Gray-box testing
 
 Compare documented policy (API specs, role/permission matrices, tenant membership rules, sharing/delegation requirements) directly against black-box results — a documented restriction the server fails to enforce is much stronger evidence than an undocumented route simply existing. Review authorization configuration where available: is the policy based on the authenticated principal or a client-controlled value, are object-level checks applied *after* the resource is identified (not just role checks before), do privileged routes carry additional controls beyond ordinary authentication. Examine audit logs to corroborate: which principal, which role/tenant, which resource, was a decision recorded, was it allow or deny, did the state actually change. Inspect controlled resource/permission records directly to distinguish a genuine authorization failure from a mistaken assumption about ownership or intended sharing. Investigate cached authorization decisions specifically — compare access immediately before and after a controlled permission change, and determine what's cached (roles, tenant membership, permission lists, object decisions, signed URLs, precomputed exports), how long it persists, and whether the server actually re-checks on retrieval or just trusts the cache.
 
-## G. White-box testing
+## F. White-box testing
 
 **Trace the full execution path**: `router → auth middleware → principal construction → resource lookup → authorization policy → business logic → data access → response`. **The single most important discipline in this entire guide: authentication middleware establishing who the caller is proves nothing about whether that caller can access a particular object.** Never treat the presence of auth middleware as proof of authorization.
 
@@ -73,7 +73,7 @@ This authenticates and loads the resource, but never visibly verifies ownership 
 
 **Review failure behavior explicitly** — when a permission record is missing, tenant membership can't be resolved, a policy service is down, or a role lookup throws: does the application deny access or does it accidentally proceed? A generic server error is not inherently a bypass; the question is whether the failure path results in unauthorized disclosure or action.
 
-## H. Differential testing
+## G. Differential testing
 
 Seven-step workflow: define the expected policy ("only the owner or an explicitly authorized delegate can view this document"), establish the baseline with the owner account, change exactly one variable (identity, role, tenant, action, resource state, or execution path) while holding everything else constant, compare actual outcomes (data disclosed, state changed, error behavior, audit records — not just status code), explain whether the result follows or violates the stated policy, corroborate with gray/white-box evidence where available, retest after remediation to confirm both that unauthorized access is now denied *and* legitimate access still works.
 
@@ -88,23 +88,23 @@ Seven-step workflow: define the expected policy ("only the owner or an explicitl
 | Permission revocation | Current permission state | Access follows documented revocation policy |
 | Data export | Requested dataset | Export limited to authorized records |
 
-## I. Worked example: cross-tenant invoice disclosure
+### Worked example: cross-tenant invoice disclosure
 
 Black-box: Alice (Tenant A) requests her own invoice successfully, then requests a controlled Tenant B invoice using the identical session — the full invoice returns, repeated with a second controlled resource to rule out a one-off data mistake. Gray-box: documentation confirms invoices are tenant-private; test records confirm the second invoice genuinely belongs to Tenant B; the audit log shows the request was allowed. White-box: the route loads the invoice by identifier alone (`SELECT * FROM invoices WHERE invoice_id = :invoice_id`) with no tenant-membership check before serialization. Root cause: the application verifies *who* Alice is but never checks whether she's authorized for *that invoice's tenant*. Remediation: enforce tenant membership and resource-level authorization server-side, scope the query itself where practical, apply the identical policy to exports/alternate APIs/background jobs, add regression tests using identities from different tenants, and review existing logs for signs the gap was already exploited.
 
-## J. Exploitation and validation
+## H. Exploitation and validation
 
-Minimal proof for BOLA: the four-part check from section E, demonstrated against your own two controlled accounts. Minimal proof for mass assignment: the protected field's *persisted* value actually changed, verified independently of the response body. Minimal proof for a workflow-authorization finding: the out-of-sequence or self-approved action actually completing and changing server-side state, not merely returning a 200.
+Minimal proof for BOLA: the four-part check from section D, demonstrated against your own two controlled accounts. Minimal proof for mass assignment: the protected field's *persisted* value actually changed, verified independently of the response body. Minimal proof for a workflow-authorization finding: the out-of-sequence or self-approved action actually completing and changing server-side state, not merely returning a 200.
 
-## K. False-positive analysis
+## I. False-positive analysis
 
 A `200 OK` is not itself a finding — it might contain an empty object, public metadata, or a permitted shared resource; inspect the actual disclosure. Predictable/sequential IDs are not the vulnerability — missing authorization is; don't conflate identifier complexity with the actual security control. Hidden UI controls are not protection — test the raw server endpoint directly. Administrators don't automatically have unrestricted access — some systems deliberately scope admin privileges by tenant, region, or data classification; establish the intended policy first. An expired session causing a request to fail before authorization is even evaluated is an authentication failure, not an authorization one — confirm your test identity actually reached the authorization path. A suspicious code pattern (a missing check in one controller) doesn't prove impact on its own — trace the complete path, since a dependency or data layer might enforce it elsewhere. Stale permissions persisting briefly aren't automatically a vulnerability if the system uses documented short-lived tokens or propagation windows — compare against the actual stated requirement. Testing only read access misses write/delete findings on the same resource — test every sensitive action independently. A single-record endpoint enforcing authorization correctly says nothing about a bulk export of the same data — trace the scope of the resulting dataset specifically. Intentional sharing is not broken isolation — verify ownership, membership, delegation, and sharing policy before reporting a cross-user or cross-tenant access as unauthorized.
 
-## L. Root cause
+## J. Root cause
 
 The dominant pattern, visible in nearly every finding class in this guide: a resource fetched and returned (or a field bound to a model) with authentication confirming identity but with no corresponding authorization decision checking whether *that specific identity* may access *that specific resource or property*. The second major pattern: a centralized authorization helper that actually only proves authentication (`is_authenticated()`) being used in a context that needs to prove authorization (`can_edit_invoice()`) — the names look similar enough in code review that this substitution is easy to miss.
 
-## M. Remediation
+## K. Remediation
 
 - Enforce authorization server-side for every sensitive action on every specific resource — never rely on frontend visibility, route guards, or client-supplied claims.
 - Scope resource lookups to the caller's authorized data directly in the query/repository layer, rather than fetching broadly and checking after the fact.
@@ -114,7 +114,11 @@ The dominant pattern, visible in nearly every finding class in this guide: a res
 - Fail closed when a required authorization check can't be completed — never silently grant access on a missing permission record or an unavailable policy service.
 - Define explicitly how permission changes propagate to caches, tokens, and generated links, and test both directions: unauthorized users denied, legitimate users still working.
 
-## N. Finding documentation
+## L. Regression testing
+
+Re-run the full differential matrix (BOLA, role escalation, tenant isolation, mass assignment, alternate route, workflow, permission revocation, export scope) after any change to the authorization middleware, the ORM/repository layer, or the addition of a new route, client, or background job — new entry points are the single most common place a previously-fixed authorization gap reappears, since the fix is usually applied to the original route and never ported to the new one.
+
+## M. Finding documentation
 
 Title (vulnerability class — affected resource/action — accessible to unauthorized identity), affected endpoint/component, vulnerability class (BOLA, BFLA, privilege escalation, tenant isolation, mass assignment, etc. — the accurate category, not a guess), summary, expected vs. observed behavior, prerequisites, sanitized reproduction with controlled accounts, evidence (requests/responses, actual state changes, audit records), impact (confidentiality/integrity/availability/privilege/business consequence demonstrated, not assumed), root cause, remediation, retest criteria (the specific differential tests that must pass), severity rationale grounded in actual scope and sensitivity — a BOLA exposing one low-sensitivity record and one exposing every customer's financial data are not the same severity even though both are technically BOLA.
 
